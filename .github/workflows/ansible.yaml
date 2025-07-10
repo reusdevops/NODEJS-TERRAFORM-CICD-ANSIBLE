@@ -11,8 +11,13 @@ jobs:
     # if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     
     steps:
-    - name: Checkout
-      uses: actions/checkout@v3
+      - name: Creating Directory 
+        run: mkdir Ansible
+
+      - name: List file 
+        run: ls
+    # - name: Checkout
+    #   uses: actions/checkout@v3
 
     # - name: Configure AWS credentials
     #   uses: aws-actions/configure-aws-credentials@v2
@@ -21,13 +26,13 @@ jobs:
     #     aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
     #     aws-region: ${{ env.AWS_REGION }}
 
-    - name: Install Python dependencies
-      run: |
-        python3 -m pip install --upgrade pip
-        pip install boto3 ansible
+    # - name: Install Python dependencies
+    #   run: |
+    #     python3 -m pip install --upgrade pip
+    #     pip install boto3 ansible
 
-    - name: Check ansible node-version
-      run: ansible --version
+    # - name: Check ansible node-version
+    #   run: ansible --version
 
     # - name: Install Ansible AWS collection
     #   run: |

@@ -38,7 +38,7 @@ jobs:
         chmod 600 ~/.ssh/server.pem
 
     - name: Read SSH file
-      run: cat ~/.ssh/server.pem
+      run: ls ~/.ssh
 
     # - name: Test AWS EC2 inventory plugin
     #   run: |

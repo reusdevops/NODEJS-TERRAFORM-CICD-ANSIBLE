@@ -18,7 +18,7 @@ jobs:
       run : docker build -t web-app:latest .
 
     - name: Run docker container
-      run: docker run -it -p 3000:3000 web-app:latest
+      run: docker run -p 3000:3000 web-app:latest
 
     - name: Application Health Check
       run: curl localhost:3000

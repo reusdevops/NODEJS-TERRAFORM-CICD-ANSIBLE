@@ -18,8 +18,9 @@ jobs:
       run : docker build -t web-app:latest .
 
     - name: Run docker container
-      run: docker run -p 3000:3000 web-app:latest
-
+      run: docker run -d -p 3000:3000 --name web-app-container web-app:latest
+    - name: Wait the Application to Start
+      run: sleep 5
     - name: Application Health Check
       run: curl localhost:3000
     # - name: Configure AWS credentials

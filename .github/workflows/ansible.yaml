@@ -11,7 +11,7 @@ jobs:
     name: Deploy Application
     runs-on: ubuntu-latest
     # if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    
+    environment: dev
     steps:
     - name: Check aws region 
       run: echo "{{env.AWS_REGION}}"

@@ -49,7 +49,7 @@ jobs:
 
     - name: Test AWS EC2 inventory plugin
       run: |
-        cd ansible
+        cd ./ansible
         ANSIBLE_PRIVATE_KEY_FILE=~/.ssh/server.pem ENVIRONMENT=dev ansible-inventory --list
 
     # - name: Deploy with Ansible

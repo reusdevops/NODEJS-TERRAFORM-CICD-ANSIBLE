@@ -4,8 +4,6 @@ name: Deploy Node.js Application
 on:
   push:
     branches: [ master ]
-env:
-  AWS_REGION: ap-southeast-1
 jobs:
   deploy:
     name: Deploy Application
@@ -13,9 +11,6 @@ jobs:
     # if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     environment: dev
     steps:
-    - name: Check aws region 
-      run: echo "{{env.AWS_REGION}}"
-
     # - name: Checkout
     #   uses: actions/checkout@v4
 
@@ -26,18 +21,18 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ env.AWS_REGION }}
 
-    # - name: Install Python dependencies
-    #   run: |
-    #     python3 -m pip install --upgrade pip
-    #     pip install boto3 ansible
+    - name: Install Python dependencies
+      run: |
+        python3 -m pip install --upgrade pip
+        pip install boto3 ansible
 
-    # - name: Check ansible node-version
-    #   run: ansible --version
+    - name: Check ansible node-version
+      run: ansible --version
 
-    # - name: Install Ansible AWS collection
-    #   run: |
-    #     ansible-galaxy collection install amazon.aws
-    #     ansible-galaxy collection install community.aws
+    - name: Install Ansible AWS collection
+      run: |
+        ansible-galaxy collection install amazon.aws
+        ansible-galaxy collection install community.aws
 
     - name: Setup SSH key
       run: |
@@ -50,10 +45,10 @@ jobs:
 
     
 
-    # - name: Test AWS EC2 inventory plugin
-    #   run: |
-    #     cd ./ansible
-    #     ANSIBLE_PRIVATE_KEY_FILE=~/.ssh/server.pem ENVIRONMENT=dev ansible-inventory --list
+    - name: Test AWS EC2 inventory plugin
+      run: |
+        cd ./ansible
+        ANSIBLE_PRIVATE_KEY_FILE=~/.ssh/server.pem ENVIRONMENT=dev ansible-inventory --list
 
     # - name: Deploy with Ansible
     #   run: |

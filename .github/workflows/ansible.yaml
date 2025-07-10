@@ -4,6 +4,8 @@ name: Deploy Node.js Application
 on:
   push:
     branches: [ master ]
+env:
+  AWS_REGION: ap-southeast-1
 jobs:
   deploy:
     name: Deploy Application

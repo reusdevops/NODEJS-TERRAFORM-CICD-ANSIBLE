@@ -6,4 +6,4 @@
   tasks:
     
     - name: Create a directory
-      command: mkdir Ansible-03
+      command: mkdir Ansible-04

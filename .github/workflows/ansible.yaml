@@ -11,25 +11,28 @@ jobs:
     # if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     
     steps:
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v2
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: ${{ env.AWS_REGION }}
+    - name: Check aws region 
+      run: echo "{{env.AWS_REGION}}"
 
-    - name: Install Python dependencies
-      run: |
-        python3 -m pip install --upgrade pip
-        pip install boto3 ansible
+    # - name: Configure AWS credentials
+    #   uses: aws-actions/configure-aws-credentials@v2
+    #   with:
+    #     aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+    #     aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+    #     aws-region: ${{ env.AWS_REGION }}
 
-    - name: Check ansible node-version
-      run: ansible --version
+    # - name: Install Python dependencies
+    #   run: |
+    #     python3 -m pip install --upgrade pip
+    #     pip install boto3 ansible
 
-    - name: Install Ansible AWS collection
-      run: |
-        ansible-galaxy collection install amazon.aws
-        ansible-galaxy collection install community.aws
+    # - name: Check ansible node-version
+    #   run: ansible --version
+
+    # - name: Install Ansible AWS collection
+    #   run: |
+    #     ansible-galaxy collection install amazon.aws
+    #     ansible-galaxy collection install community.aws
 
     - name: Setup SSH key
       run: |
@@ -40,10 +43,12 @@ jobs:
     - name: Read SSH file
       run: ls ~/.ssh
 
-    - name: Test AWS EC2 inventory plugin
-      run: |
-        cd ansible
-        ANSIBLE_PRIVATE_KEY_FILE=~/.ssh/server.pem ENVIRONMENT=dev ansible-inventory --list
+    
+
+    # - name: Test AWS EC2 inventory plugin
+    #   run: |
+    #     cd ansible
+    #     ANSIBLE_PRIVATE_KEY_FILE=~/.ssh/server.pem ENVIRONMENT=dev ansible-inventory --list
 
     # - name: Deploy with Ansible
     #   run: |

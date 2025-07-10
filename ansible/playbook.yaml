@@ -1,0 +1,9 @@
+---
+- name: Making directory to Ubuntu server
+  hosts: all
+  become: true # This allows Ansible to use sudo
+
+  tasks:
+    
+    - name: Create a directory
+      command: mkdir Ansible-03

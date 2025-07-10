@@ -1,0 +1,95 @@
+# .github/workflows/deploy.yml
+name: Deploy Node.js Application
+
+on:
+  push:
+    branches: [ main ]
+jobs:
+  deploy:
+    name: Deploy Application
+    runs-on: ubuntu-latest
+    # if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+
+    # - name: Configure AWS credentials
+    #   uses: aws-actions/configure-aws-credentials@v2
+    #   with:
+    #     aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+    #     aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+    #     aws-region: ${{ env.AWS_REGION }}
+
+    - name: Install Python dependencies
+      run: |
+        python3 -m pip install --upgrade pip
+        pip install boto3 ansible
+
+    - name: Check ansible node-version
+      run: ansible --version
+
+    # - name: Install Ansible AWS collection
+    #   run: |
+    #     ansible-galaxy collection install amazon.aws
+    #     ansible-galaxy collection install community.aws
+
+    # - name: Setup SSH key
+    #   run: |
+    #     mkdir -p ~/.ssh
+    #     echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/server.pem
+    #     chmod 600 ~/.ssh/server.pem
+
+    # - name: Test AWS EC2 inventory plugin
+    #   run: |
+    #     cd ansible
+    #     ANSIBLE_PRIVATE_KEY_FILE=~/.ssh/server.pem ENVIRONMENT=dev ansible-inventory --list
+
+    # - name: Deploy with Ansible
+    #   run: |
+    #     cd ansible
+    #     ansible-playbook -i inventory/aws_ec2.yml deploy.yml \
+    #       -e "github_repo=${{ github.server_url }}/${{ github.repository }}" \
+    #       -e "github_branch=${{ github.ref_name }}" \
+    #       -v
+
+    # - name: Verify deployment
+    #   run: |
+    #     cd ansible
+    #     ansible tag_Application_nodejs_app -i inventory/aws_ec2.yml -m shell -a "pm2 status"
+
+    # - name: Health check
+    #   run: |
+    #     sleep 30
+    #     LB_DNS="${{ needs.terraform.outputs.load_balancer_dns }}"
+    #     for i in {1..10}; do
+    #       if curl -f "http://$LB_DNS"; then
+    #         echo "Health check passed!"
+    #         break
+    #       fi
+    #       echo "Attempt $i failed, retrying..."
+    #       sleep 10
+    #     done
+
+  # test:
+  #   name: Test Application
+  #   runs-on: ubuntu-latest
+    
+  #   steps:
+  #   - name: Checkout
+  #     uses: actions/checkout@v3
+
+  #   - name: Setup Node.js
+  #     uses: actions/setup-node@v3
+  #     with:
+  #       node-version: '18'
+  #       cache: 'npm'
+
+  #   - name: Install dependencies
+  #     run: npm ci
+
+  #   - name: Run tests
+  #     run: npm test
+
+  #   - name: Run linting
+  #     run: npm run lint

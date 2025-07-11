@@ -41,7 +41,7 @@ jobs:
       run: sleep 5
 
     - name: Run Test
-      run : curl localhost:3000
+      run : curl localhost:80
 
 
     - name: Push to Docker Hub

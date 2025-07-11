@@ -2,8 +2,29 @@
 - name: Deploying application
   hosts: all
   become: true # This allows Ansible to use sudo
+
+  pre_tasks:
+    # === QUICK DOCKER CHECK ===
+    - name: Check docker version
+      command: docker --version
+      register: docker_check
+      ignore_errors: true
+      changed_when: false
+      
+    # - name: Set Docker installation flag
+    #   set_fact:
+    #     docker_needs_install: docker_check.rc != 0
+
+    - name: show message
+      debug:
+        msg: |
+          - docker --version return code: {{ docker_check.rc }}
+          - Output: {{ docker_check.stdout if docker_check.rc == 0 else docker_check.stderr }}
+          - docker_needs_install : {{ docker_check.rc != 0 }}
+
   roles:
     - role: geerlingguy.docker
+      when: docker_check.rc != 0
       vars:
         docker_users: 
           - reus
@@ -13,6 +34,7 @@
           log-opts:
             max-size: "10m"
             max-file: "3"
+
   tasks:
     - name: Log in to Docker Hub
       docker_login:
@@ -64,7 +86,13 @@
           start_period: 40s
 
 
-          
+
+
+
+
+
+
+
   #   - name: Update apt cache
   #     apt:
   #       update_cache: yes

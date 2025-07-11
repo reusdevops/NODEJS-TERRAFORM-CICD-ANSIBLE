@@ -1,9 +1,38 @@
 ---
-- name: Making directory to Ubuntu server
+- name: Installing docker
   hosts: all
   become: true # This allows Ansible to use sudo
 
   tasks:
     
-    - name: Create a directory
-      command: mkdir Ansible-04
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+      tags: ['docker', 'update']
+
+    - name: Install Docker using docker_host module
+      docker_host:
+        state: present
+        docker_daemon_config:
+          log-driver: "json-file"
+          log-opts:
+            max-size: "10m"
+            max-file: "3"
+      tags: ['docker', 'install']
+
+    - name: Add users to docker group
+      user:
+        name: reus
+        groups: docker
+        append: yes
+      tags: ['docker', 'users']
+
+    - name: Test Docker installation
+      docker_container:
+        name: hello-world-test
+        image: hello-world
+        state: started
+        detach: no
+        cleanup: yes
+      tags: ['docker', 'test']

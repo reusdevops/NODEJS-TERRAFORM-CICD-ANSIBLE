@@ -78,6 +78,7 @@ jobs:
         run: |
           ansible-galaxy collection install amazon.aws
           ansible-galaxy collection install community.aws
+          ansible-galaxy collection install community.docker
 
       - name: Setup SSH key
         run: |
@@ -85,18 +86,18 @@ jobs:
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/server.pem
           chmod 600 ~/.ssh/server.pem
 
-      - name: Test AWS EC2 inventory plugin
-        run: |
-          cd ./ansible
-          ANSIBLE_PRIVATE_KEY_FILE=~/.ssh/server.pem ENVIRONMENT=dev ansible-inventory --list
+      # - name: Test AWS EC2 inventory plugin
+      #   run: |
+      #     cd ./ansible
+      #     ANSIBLE_PRIVATE_KEY_FILE=~/.ssh/server.pem ENVIRONMENT=dev ansible-inventory --list
 
-    # - name: Deploy with Ansible
-    #   run: |
-    #     cd ansible
-    #     ansible-playbook -i inventory/aws_ec2.yml deploy.yml \
-    #       -e "github_repo=${{ github.server_url }}/${{ github.repository }}" \
-    #       -e "github_branch=${{ github.ref_name }}" \
-    #       -v
+      - name: Deploy with Ansible
+        run: |
+          cd ansible
+          ANSIBLE_PRIVATE_KEY_FILE=~/.ssh/server.pem ENVIRONMENT=dev ansible-playbook playbook.yml 
+            # -e "github_repo=${{ github.server_url }}/${{ github.repository }}" \
+            # -e "github_branch=${{ github.ref_name }}" \
+            # -v
 
     # - name: Verify deployment
     #   run: |

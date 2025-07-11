@@ -68,14 +68,14 @@
         image: phyolwinlwinlatt/web-app:latest
         state: started
         restart_policy: unless-stopped
-        ports: 3000:3000
+        ports: 80:3000
         # Additional container options
         pull: no  # Don't pull again, we already pulled above
         detach: yes
         interactive: no
         tty: no
         healthcheck:
-          test: ["CMD", "curl", "-f", "http://localhost:3000"]
+          test: ["CMD", "curl", "-f", "http://localhost:80"]
           interval: 30s
           timeout: 10s
           retries: 3

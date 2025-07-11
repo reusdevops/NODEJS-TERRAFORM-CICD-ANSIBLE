@@ -59,7 +59,7 @@
         name: web-app-container
         state: absent
       ignore_errors: true  # Don't fail if container doesn't exist
-      tags: ['docker', 'remove', 'container']
+      tags: ['docker', 'remove', 'containers']
       when: true # Set to true if you want to remove old container
 
     - name: Create and run Docker container

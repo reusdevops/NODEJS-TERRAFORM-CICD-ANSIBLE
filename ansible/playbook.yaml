@@ -1,38 +1,98 @@
 ---
-- name: Installing docker
+- name: Deploying application
   hosts: all
   become: true # This allows Ansible to use sudo
-
-  tasks:
-    
-    - name: Update apt cache
-      apt:
-        update_cache: yes
-        cache_valid_time: 3600
-      tags: ['docker', 'update']
-
-    - name: Install Docker using docker_host module
-      docker_host:
-        state: present
-        docker_daemon_config:
+  roles:
+    - role: geerlingguy.docker
+      vars:
+        docker_users: 
+          - reus
+        docker_install_compose: true
+        docker_daemon_options:
           log-driver: "json-file"
           log-opts:
             max-size: "10m"
             max-file: "3"
-      tags: ['docker', 'install']
+  tasks:
+    - name: Log in to Docker Hub
+      docker_login:
+        username: "phyolwinlwinlatt"
+        password: "Thisismypassword.2020"
+        registry_url: "https://index.docker.io/v1"
 
-    - name: Add users to docker group
-      user:
-        name: reus
-        groups: docker
-        append: yes
-      tags: ['docker', 'users']
+    -   name: Download image from docker Hub
+        docker_image:
+          name: phyolwinlwinlatt/web-app
+          tag: latest
+          state: present
+          source: pull
+          force_source: yes  # Always pull latest version
+        tags: ['docker', 'images', 'download']
 
-    - name: Test Docker installation
+    - name: Stop existing container (if running)
       docker_container:
-        name: hello-world-test
-        image: hello-world
+        name: web-app-container
+        state: stopped
+      ignore_errors: true  # Don't fail if container doesn't exist
+      tags: ['docker', 'stop', 'container']
+
+    - name: Remove existing container (optional - for clean restart)
+      docker_container:
+        name: web-app-container
+        state: absent
+      ignore_errors: true  # Don't fail if container doesn't exist
+      tags: ['docker', 'remove', 'container']
+      when: true # Set to true if you want to remove old container
+
+    - name: Create and run Docker container
+      docker_container:
+        name: web-app-container
+        image: phyolwinlwinlatt/web-app:latest
         state: started
-        detach: no
-        cleanup: yes
-      tags: ['docker', 'test']
+        restart_policy: unless-stopped
+        ports: 3000:3000
+        # Additional container options
+        pull: no  # Don't pull again, we already pulled above
+        detach: yes
+        interactive: no
+        tty: no
+        healthcheck:
+          test: ["CMD", "curl", "-f", "http://localhost:3000"]
+          interval: 30s
+          timeout: 10s
+          retries: 3
+          start_period: 40s
+
+
+          
+  #   - name: Update apt cache
+  #     apt:
+  #       update_cache: yes
+  #       cache_valid_time: 3600
+  #     tags: ['docker', 'update']
+
+  #   - name: Install Docker using docker_host module
+  #     docker_host:
+  #       state: present
+  #       docker_daemon_config:
+  #         log-driver: "json-file"
+  #         log-opts:
+  #           max-size: "10m"
+  #           max-file: "3"
+  #     tags: ['docker', 'install']
+
+  #   - name: Add users to docker group
+  #     user:
+  #       name: reus
+  #       groups: docker
+  #       append: yes
+  #     tags: ['docker', 'users']
+
+  #   - name: Test Docker installation
+  #     docker_container:
+  #       name: hello-world-test
+  #       image: hello-world
+  #       state: started
+  #       detach: no
+  #       cleanup: yes
+  #     tags: ['docker', 'test']

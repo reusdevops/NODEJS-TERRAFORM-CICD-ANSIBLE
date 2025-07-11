@@ -43,6 +43,13 @@ jobs:
     - name: Run Test
       run : curl localhost:3000
 
+
+    - name: Push to Docker Hub
+      uses: docker/build-push-action@v6
+      with:
+        context: .
+        push: true
+        tags: ${{ vars.DOCKERHUB_USERNAME}}/web-app:latest
   # build:
   #   name: Building the Image
   #   runs-on: ubuntu-latest

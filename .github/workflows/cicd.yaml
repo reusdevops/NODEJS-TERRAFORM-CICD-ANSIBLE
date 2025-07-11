@@ -92,9 +92,9 @@ jobs:
       #     ANSIBLE_PRIVATE_KEY_FILE=~/.ssh/server.pem ENVIRONMENT=dev ansible-inventory --list
 
       - name: Deploy with Ansible
-        run: |
-          cd ./ansible
-          ANSIBLE_PRIVATE_KEY_FILE=~/.ssh/server.pem ENVIRONMENT=dev ansible-playbook playbook.yml 
+        run: ls
+          # cd ./ansible
+          # ANSIBLE_PRIVATE_KEY_FILE=~/.ssh/server.pem ENVIRONMENT=dev ansible-playbook playbook.yaml 
             # -e "github_repo=${{ github.server_url }}/${{ github.repository }}" \
             # -e "github_branch=${{ github.ref_name }}" \
             # -v

@@ -35,7 +35,7 @@ jobs:
         cache-to: type=gha,mode=max
 
     - name: Run docker container
-      run: docker run -d -p 3000:3000 --name web-app-container web-app:latest
+      run: docker run -d -p 80:3000 --name web-app-container web-app:latest
 
     - name: Wait the Application to Start
       run: sleep 5

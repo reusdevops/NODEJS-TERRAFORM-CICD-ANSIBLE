@@ -11,10 +11,6 @@
       ignore_errors: true
       changed_when: false
       
-    # - name: Set Docker installation flag
-    #   set_fact:
-    #     docker_needs_install: docker_check.rc != 0
-
     - name: show message
       debug:
         msg: |

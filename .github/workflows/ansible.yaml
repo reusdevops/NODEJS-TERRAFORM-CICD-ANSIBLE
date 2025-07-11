@@ -53,6 +53,7 @@ jobs:
   deploy:
     name: Deploying the application
     runs-on: ubuntu-latest
+    environment: dev
     needs: test
     steps:
       - name: Checkout

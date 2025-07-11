@@ -26,7 +26,7 @@ jobs:
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
-    - name: Build and push
+    - name: Build and Load Image
       uses: docker/build-push-action@v6
       with:
         load: true
@@ -50,72 +50,44 @@ jobs:
         context: .
         push: true
         tags: ${{ vars.DOCKERHUB_USERNAME}}/web-app:latest
-  # build:
-  #   name: Building the Image
-  #   runs-on: ubuntu-latest
-  #   needs: test
-  #   steps:
-  #     - name: Checkout
-  #       uses: actions/checkout@v4
+  deploy:
+    name: Deploying the application
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-  #     - name: Set up QEMU
-  #       uses: docker/setup-qemu-action@v3
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_REGION }}
 
-  #     - name: Set up Docker Buildx
-  #       uses: docker/setup-buildx-action@v3
-      
-  #     - name: Build and push
-  #       uses: docker/build-push-action@v6
-  #       with:
-  #         load: true
-  #         tags: web-app:latest
-  #         cache-from: type=gha
-  #         cache-to: type=gha,mode=max
+      - name: Install Python dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          pip install boto3 ansible
 
-  #     - name: Run docker Image
-  #       run: docker run -d -p 3000:3000 web-app:latest
+      - name: Check ansible node-version
+        run: ansible --version
 
-  #     - name: Wait the application to be ready
-  #       run: sleep 5
+      - name: Install Ansible AWS collection
+        run: |
+          ansible-galaxy collection install amazon.aws
+          ansible-galaxy collection install community.aws
 
-  #     - name: Health Check
-  #       run: curl localhost:3000
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/server.pem
+          chmod 600 ~/.ssh/server.pem
 
-    # - name: Configure AWS credentials
-    #   uses: aws-actions/configure-aws-credentials@v4
-    #   with:
-    #     aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-    #     aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-    #     aws-region: ${{ vars.AWS_REGION }}
-
-    # - name: Install Python dependencies
-    #   run: |
-    #     python3 -m pip install --upgrade pip
-    #     pip install boto3 ansible
-
-    # - name: Check ansible node-version
-    #   run: ansible --version
-
-    # - name: Install Ansible AWS collection
-    #   run: |
-    #     ansible-galaxy collection install amazon.aws
-    #     ansible-galaxy collection install community.aws
-
-    # - name: Setup SSH key
-    #   run: |
-    #     mkdir -p ~/.ssh
-    #     echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/server.pem
-    #     chmod 600 ~/.ssh/server.pem
-
-    # - name: Read SSH file
-    #   run: ls ~/.ssh
-
-    
-
-    # - name: Test AWS EC2 inventory plugin
-    #   run: |
-    #     cd ./ansible
-    #     ANSIBLE_PRIVATE_KEY_FILE=~/.ssh/server.pem ENVIRONMENT=dev ansible-inventory --list
+      - name: Test AWS EC2 inventory plugin
+        run: |
+          cd ./ansible
+          ANSIBLE_PRIVATE_KEY_FILE=~/.ssh/server.pem ENVIRONMENT=dev ansible-inventory --list
 
     # - name: Deploy with Ansible
     #   run: |

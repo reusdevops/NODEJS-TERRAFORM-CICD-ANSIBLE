@@ -81,10 +81,12 @@ jobs:
         run: |
           terraform init -backend=false
 
-      - name: Terraform Apply
-        working-directory: ./terraform
-        run: terraform apply --auto-approve
-      
+      # - name: Terraform Apply
+      #   working-directory: ./terraform
+      #   run: terraform apply --auto-approve
+      - name: Displaying variables
+        run: echo ${{ vars.AWS_REGION}}
+        
       - name: Get EC2 IPs
         working-directory: ./terraform
         id: tf-output

@@ -32,11 +32,27 @@
             max-file: "3"
 
   tasks:
+    - name: Ensure nginx is installed
+      apt:
+        name: nginx
+        state: present
+        update_cache: yes
+  
     - name: Log in to Docker Hub
       docker_login:
         username: "phyolwinlwinlatt"
         password: "Thisismypassword.2020"
         registry_url: "https://index.docker.io/v1"
+    - name: Getting container's port
+      set_fact:
+        current_port: docker inspect -f '{{(index (index .NetworkSettings.Ports "3000/tcp") 0).HostPort}}' movie-app-blue
+
+    - name: Determine ports for deployment
+      set_fact:
+        current_port: "{{ current_port_check.stdout | default('8081') }}"
+        new_port: "{{ '8081' if current_port_check.stdout == '8080' else '8080' }}"
+        old_container: "{{ 'web-app-blue' if current_port_check.stdout == '8080' else 'web-app-green' }}"
+        new_container: "{{ 'web-app-green' if current_port_check.stdout == '8080' else 'web-app-blue' }}"
 
     -   name: Download image from docker Hub
         docker_image:
@@ -59,7 +75,7 @@
         name: web-app-container
         state: absent
       ignore_errors: true  # Don't fail if container doesn't exist
-      tags: ['docker', 'remove', 'container']
+      tags: ['docker', 'remove', 'containers']
       when: true # Set to true if you want to remove old container
 
     - name: Create and run Docker container
@@ -68,14 +84,14 @@
         image: phyolwinlwinlatt/web-app:latest
         state: started
         restart_policy: unless-stopped
-        ports: 3000:3000
+        ports: 80:3000
         # Additional container options
         pull: no  # Don't pull again, we already pulled above
         detach: yes
         interactive: no
         tty: no
         healthcheck:
-          test: ["CMD", "curl", "-f", "http://localhost:3000"]
+          test: ["CMD", "curl", "-f", "http://localhost:80"]
           interval: 30s
           timeout: 10s
           retries: 3

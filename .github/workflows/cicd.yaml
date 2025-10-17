@@ -14,42 +14,42 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v4
 
-    - name: Login to Docker Hub
-      uses: docker/login-action@v3
-      with:
-        username: ${{ vars.DOCKERHUB_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_TOKEN }}
+    # - name: Login to Docker Hub
+    #   uses: docker/login-action@v3
+    #   with:
+    #     username: ${{ vars.DOCKERHUB_USERNAME }}
+    #     password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-    - name: Set up QEMU
-      uses: docker/setup-qemu-action@v3
+    # - name: Set up QEMU
+    #   uses: docker/setup-qemu-action@v3
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
+    # - name: Set up Docker Buildx
+    #   uses: docker/setup-buildx-action@v3
 
-    - name: Build and Load Image
-      uses: docker/build-push-action@v6
-      with:
-        load: true
-        tags: web-app:latest
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
+    # - name: Build and Load Image
+    #   uses: docker/build-push-action@v6
+    #   with:
+    #     load: true
+    #     tags: web-app:latest
+    #     cache-from: type=gha
+    #     cache-to: type=gha,mode=max
 
-    - name: Run docker container
-      run: docker run -d -p 80:3000 --name web-app-container web-app:latest
+    # - name: Run docker container
+    #   run: docker run -d -p 80:3000 --name web-app-container web-app:latest
 
-    - name: Wait the Application to Start
-      run: sleep 5
+    # - name: Wait the Application to Start
+    #   run: sleep 5
 
-    - name: Run Test
-      run : curl localhost:80
+    # - name: Run Test
+    #   run : curl localhost:80
 
 
-    - name: Push to Docker Hub
-      uses: docker/build-push-action@v6
-      with:
-        context: .
-        push: true
-        tags: ${{ vars.DOCKERHUB_USERNAME}}/web-app:latest
+    # - name: Push to Docker Hub
+    #   uses: docker/build-push-action@v6
+    #   with:
+    #     context: .
+    #     push: true
+    #     tags: ${{ vars.DOCKERHUB_USERNAME}}/web-app:latest
   deploy:
     name: Deploying the application
     runs-on: ubuntu-latest
@@ -66,35 +66,74 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ vars.AWS_REGION }}
 
-      - name: Install Python dependencies
-        run: |
-          python3 -m pip install --upgrade pip
-          pip install boto3 ansible
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.13.4
+          terraform_wrapper: false
 
-      - name: Check ansible node-version
-        run: ansible --version
-
-      - name: Install Ansible AWS collection
+      - name: Terraform Init
+        working-directory: ./terraform
         run: |
-          ansible-galaxy collection install amazon.aws
-          ansible-galaxy collection install community.aws
-          ansible-galaxy role install geerlingguy.docker
+          terraform init -backend=false
 
-      - name: Setup SSH key
+      
+      - name: Get EC2 IPs
+        working-directory: ./terraform
+        id: tf-output
         run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/server.pem
-          chmod 600 ~/.ssh/server.pem
+          ls
+          terraform output instance_ips
+
+          # echo "Private IPs:"
+          # terraform output instance_ips
+
+          # echo "Public IPs:"
+          # terraform output instance_public_ips
+
+      # - name: Install Python dependencies
+      #   run: |
+      #     python3 -m pip install --upgrade pip
+      #     pip install boto3 ansible
+
+      # - name: Check ansible node-version
+      #   run: ansible --version
+
+      # - name: Install Ansible AWS collection
+      #   run: |
+      #     ansible-galaxy collection install amazon.aws
+      #     ansible-galaxy collection install community.aws
+      #     ansible-galaxy role install geerlingguy.docker
+
+      # - name: Setup SSH key
+      #   run: |
+      #     mkdir -p ~/.ssh
+      #     echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/server.pem
+      #     chmod 600 ~/.ssh/server.pem
+
+      # - name: Setup Vault Password File
+      #   run: |
 
       # - name: Test AWS EC2 inventory plugin
       #   run: |
       #     cd ./ansible
       #     ANSIBLE_PRIVATE_KEY_FILE=~/.ssh/server.pem ENVIRONMENT=dev ansible-inventory --list
 
-      - name: Deploy with Ansible
-        run: |
-          cd ./ansible
-          ANSIBLE_PRIVATE_KEY_FILE=~/.ssh/server.pem ENVIRONMENT=dev ansible-playbook playbook.yaml
+      # - name: Deploy with Ansible
+      #   run: |
+      #     cd ./ansible
+      #     ANSIBLE_PRIVATE_KEY_FILE=~/.ssh/server.pem ENVIRONMENT=dev ansible-playbook playbook.yaml
+
+
+
+
+
+
+
+
+
+
+
     # - name: Verify deployment
     #   run: |
     #     cd ansible

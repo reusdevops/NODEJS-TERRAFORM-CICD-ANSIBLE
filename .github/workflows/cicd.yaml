@@ -77,6 +77,9 @@ jobs:
         run: |
           terraform init -backend=false
 
+      - name: Terraform Apply
+        working-directory: ./terraform
+        run: terraform apply --auto-approve
       
       - name: Get EC2 IPs
         working-directory: ./terraform

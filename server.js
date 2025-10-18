@@ -8,6 +8,13 @@ app.get('/', (req, res) => {
     })
 })
 
+app.get('/posts', (req, res) => {
+    return res.status(200).json({
+        path: "/posts", 
+        message: "there are posts"
+    })
+})
+
 
 
 app.listen(PORT, ()=> {

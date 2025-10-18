@@ -92,7 +92,7 @@ jobs:
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/dev-server.pem
 
       - name: Change SSH permision
-        run: chmod 400 ~/.ssh/dev-server.pem
+        run: chmod 600 ~/.ssh/dev-server.pem
       # - name: Setup Vault Password File
       #   run: |
 

@@ -20,28 +20,28 @@ jobs:
     #     username: ${{ vars.DOCKERHUB_USERNAME }}
     #     password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-    # - name: Set up QEMU
-    #   uses: docker/setup-qemu-action@v3
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v3
 
-    # - name: Set up Docker Buildx
-    #   uses: docker/setup-buildx-action@v3
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
 
-    # - name: Build and Load Image
-    #   uses: docker/build-push-action@v6
-    #   with:
-    #     load: true
-    #     tags: web-app:latest
-    #     cache-from: type=gha
-    #     cache-to: type=gha,mode=max
+    - name: Build and Load Image
+      uses: docker/build-push-action@v6
+      with:
+        load: true
+        tags: web-app:latest
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
 
-    # - name: Run docker container
-    #   run: docker run -d -p 80:3000 --name web-app-container web-app:latest
+    - name: Run docker container
+      run: docker run -d -p 3000:3000 --name web-app-container web-app:latest
 
-    # - name: Wait the Application to Start
-    #   run: sleep 5
+    - name: Wait the Application to Start
+      run: sleep 5
 
-    # - name: Run Test
-    #   run : curl localhost:80
+    - name: Run Test
+      run : curl localhost:3000
 
 
     # - name: Push to Docker Hub
@@ -50,6 +50,7 @@ jobs:
     #     context: .
     #     push: true
     #     tags: ${{ vars.DOCKERHUB_USERNAME}}/web-app:latest
+
   deploy:
     name: Deploying the application
     runs-on: ubuntu-latest
@@ -63,47 +64,40 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ vars.AWS_REGION }}
+      # - name: Configure AWS credentials
+      #   uses: aws-actions/configure-aws-credentials@v4
+      #   with:
+      #     aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      #     aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      #     aws-region: ${{ vars.AWS_REGION }}
 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: 1.13.4
-          terraform_wrapper: false
+      # - name: Setup Terraform
+      #   uses: hashicorp/setup-terraform@v3
+      #   with:
+      #     terraform_version: 1.13.4
+      #     terraform_wrapper: false
 
-      - name: Terraform Init
-        working-directory: ./terraform
-        run: |
-          terraform init -backend=false
+      # - name: Terraform Init
+      #   working-directory: ./terraform
+      #   run: |
+      #     terraform init -backend=false
 
-      - name: Terraform Apply
-        working-directory: ./terraform
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_REGION: ${{ vars.AWS_REGION }}
-        run: terraform apply --auto-approve
-        
-      - name: Displaying variables
-        run: echo ${{ vars.AWS_REGION}}
+      # - name: Terraform Apply
+      #   working-directory: ./terraform
+      #   run: terraform apply --auto-approve
 
-      - name: Get EC2 IPs
-        working-directory: ./terraform
-        id: tf-output
-        run: |
-          ls
-          terraform output instance_ips
+      # - name: Get EC2 IPs
+      #   working-directory: ./terraform
+      #   id: tf-output
+      #   run: |
+      #     ls
+      #     terraform output instance_ips
 
-          # echo "Private IPs:"
-          # terraform output instance_ips
+      #     # echo "Private IPs:"
+      #     # terraform output instance_ips
 
-          # echo "Public IPs:"
-          # terraform output instance_public_ips
+      #     # echo "Public IPs:"
+      #     # terraform output instance_public_ips
 
       # - name: Install Python dependencies
       #   run: |
@@ -122,8 +116,8 @@ jobs:
       # - name: Setup SSH key
       #   run: |
       #     mkdir -p ~/.ssh
-      #     echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/server.pem
-      #     chmod 600 ~/.ssh/server.pem
+      #     echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/dev-server.pem
+      #     chmod 600 ~/.ssh/dev-server.pem
 
       # - name: Setup Vault Password File
       #   run: |
@@ -131,12 +125,12 @@ jobs:
       # - name: Test AWS EC2 inventory plugin
       #   run: |
       #     cd ./ansible
-      #     ANSIBLE_PRIVATE_KEY_FILE=~/.ssh/server.pem ENVIRONMENT=dev ansible-inventory --list
+      #     ANSIBLE_PRIVATE_KEY_FILE=~/.ssh/dev-server.pem ENVIRONMENT=dev ansible-inventory --list
 
       # - name: Deploy with Ansible
       #   run: |
       #     cd ./ansible
-      #     ANSIBLE_PRIVATE_KEY_FILE=~/.ssh/server.pem ENVIRONMENT=dev ansible-playbook playbook.yaml
+      #     ANSIBLE_PRIVATE_KEY_FILE=~/.ssh/dev-server.pem ENVIRONMENT=dev ansible-playbook playbook.yaml
 
 
 

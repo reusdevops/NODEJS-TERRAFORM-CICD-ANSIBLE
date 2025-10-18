@@ -65,60 +65,32 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # - name: Configure AWS credentials
-      #   uses: aws-actions/configure-aws-credentials@v4
-      #   with:
-      #     aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      #     aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      #     aws-region: ${{ vars.AWS_REGION }}
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_REGION }}
 
-      # - name: Setup Terraform
-      #   uses: hashicorp/setup-terraform@v3
-      #   with:
-      #     terraform_version: 1.13.4
-      #     terraform_wrapper: false
+      - name: Install Python dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          pip install boto3 ansible
 
-      # - name: Terraform Init
-      #   working-directory: ./terraform
-      #   run: |
-      #     terraform init -backend=false
+      - name: Check ansible node-version
+        run: ansible --version
 
-      # - name: Terraform Apply
-      #   working-directory: ./terraform
-      #   run: terraform apply --auto-approve
+      - name: Install Ansible AWS collection
+        run: |
+          ansible-galaxy collection install amazon.aws
+          ansible-galaxy collection install community.aws
+          ansible-galaxy role install geerlingguy.docker
 
-      # - name: Get EC2 IPs
-      #   working-directory: ./terraform
-      #   id: tf-output
-      #   run: |
-      #     ls
-      #     terraform output instance_ips
-
-      #     # echo "Private IPs:"
-      #     # terraform output instance_ips
-
-      #     # echo "Public IPs:"
-      #     # terraform output instance_public_ips
-
-      # - name: Install Python dependencies
-      #   run: |
-      #     python3 -m pip install --upgrade pip
-      #     pip install boto3 ansible
-
-      # - name: Check ansible node-version
-      #   run: ansible --version
-
-      # - name: Install Ansible AWS collection
-      #   run: |
-      #     ansible-galaxy collection install amazon.aws
-      #     ansible-galaxy collection install community.aws
-      #     ansible-galaxy role install geerlingguy.docker
-
-      # - name: Setup SSH key
-      #   run: |
-      #     mkdir -p ~/.ssh
-      #     echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/dev-server.pem
-      #     chmod 600 ~/.ssh/dev-server.pem
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/dev-server.pem
+          chmod 600 ~/.ssh/dev-server.pem
 
       # - name: Setup Vault Password File
       #   run: |
@@ -126,12 +98,12 @@ jobs:
       # - name: Test AWS EC2 inventory plugin
       #   run: |
       #     cd ./ansible
-      #     ANSIBLE_PRIVATE_KEY_FILE=~/.ssh/dev-server.pem ENVIRONMENT=dev ansible-inventory --list
+      #     ANSIBLE_PRIVATE_KEY_FILE=~/.ssh/dev-server.pem ansible-inventory --list
 
-      # - name: Deploy with Ansible
-      #   run: |
-      #     cd ./ansible
-      #     ANSIBLE_PRIVATE_KEY_FILE=~/.ssh/dev-server.pem ENVIRONMENT=dev ansible-playbook playbook.yaml
+      - name: Deploy with Ansible
+        run: |
+          cd ./ansible
+          ANSIBLE_PRIVATE_KEY_FILE=~/.ssh/dev-server.pem ansible-playbook playbook.yaml
 
 
 

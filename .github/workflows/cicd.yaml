@@ -57,10 +57,6 @@ jobs:
     runs-on: ubuntu-latest
     environment: dev
     needs: test
-    env:
-      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      AWS_REGION: ${{ vars.AWS_REGION }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -105,10 +101,10 @@ jobs:
       - name: Deploy with Ansible
         run: |
           cd ./ansible
-          ansible-playbook playbook.yaml |
-          -e ansible_private_key_file=~/.ssh/dev-server.pem |
-          -e ENVIRONMENT=dev |
-          --vault-passwrod-file .vault_password |
+          ansible-playbook playbook.yaml \
+          -e ansible_private_key_file=~/.ssh/dev-server.pem \
+          -e ENVIRONMENT=dev \
+          --vault-passwrod-file .vault_password \
           
 
 

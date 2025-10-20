@@ -131,7 +131,7 @@ jobs:
 
       - name: Create Ansible vault password file
         run: |
-          echo "${{ secrets.ANSIBLE_VAULT_PASSWORD }}" > .vault_password
+          echo "${{ secrets.ANSIBLE_VAULT_PASSWORD }}" > ~/.vault_password
           chmod 600 .vault_password
 
       - name: Run Ansible playbook
@@ -141,10 +141,10 @@ jobs:
             -e ansible_private_key_file=~/.ssh/dev-server.pem \
             -e ENVIRONMENT=dev \
             -e DOCKER_IMAGE_TAG=${{ github.sha }} \
-            --vault-password-file ../.vault_password
+            --vault-password-file ~/.vault_password
 
       - name: Cleanup sensitive files
         if: always()
         run: |
           rm -f ~/.ssh/dev-server.pem
-          rm -f .vault_password
+          rm -f ~/.vault_password

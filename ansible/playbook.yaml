@@ -2,6 +2,9 @@
 - name: Deploying application
   hosts: all
   become: true # This allows Ansible to use sudo
+  vars_files:
+    - "vars/{{ ENVIRONMENT }}_secrets.yaml"
+    - "vars/{{ ENVIRONMENT }}_main.yaml"
 
   pre_tasks:
     # === QUICK DOCKER CHECK ===
@@ -37,11 +40,14 @@
     #     name: nginx
     #     state: present
     #     update_cache: yes
+    - name: Check vars
+      debug:
+        msg: "dockerhub username is {{ dockerhub_username }}"
   
     - name: Log in to Docker Hub
       docker_login:
-        username: "phyolwinlwinlatt"
-        password: "aEJ6j#GVnPLddBDrfkuB"
+        username: "{{ dockerhub_username }}"
+        password: "{{ dockerhub_password }}"
         registry_url: "https://index.docker.io/v1"
     # - name: Getting container's port
     #   set_fact:
@@ -65,14 +71,14 @@
 
     - name: Stop existing container (if running)
       docker_container:
-        name: web-app-container
+        name: web-app
         state: stopped
       ignore_errors: true  # Don't fail if container doesn't exist
       tags: ['docker', 'stop', 'container']
 
     - name: Remove existing container (optional - for clean restart)
       docker_container:
-        name: web-app-container
+        name: web-app
         state: absent
       ignore_errors: true  # Don't fail if container doesn't exist
       tags: ['docker', 'remove', 'containers']
@@ -80,18 +86,18 @@
 
     - name: Create and run Docker container
       docker_container:
-        name: web-app-container
-        image: phyolwinlwinlatt/web-app:latest
+        name: web-app
+        image: "{{ dockerhub_username }}/web-app:latest"
         state: started
         restart_policy: unless-stopped
-        ports: 3000:3000
+        ports: "{{ host_port }}:{{ container_port }}"
         # Additional container options
         pull: no  # Don't pull again, we already pulled above
         detach: yes
         interactive: no
         tty: no
         healthcheck:
-          test: ["CMD", "curl", "-f", "http://localhost:3000"]
+          test: ["CMD", "curl", "-f", "http://localhost:${{ container_port }}"]
           interval: 30s
           timeout: 10s
           retries: 3

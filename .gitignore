@@ -1,4 +1,10 @@
+node_modules
+
+
 terraform/.terraform
 terraform/.terraform.lock.hcl
 terraform/terraform.tfstate
 terraform/terraform.tfstate.backup
+.vault_pass*
+*.vault_pass
+vault_pass*

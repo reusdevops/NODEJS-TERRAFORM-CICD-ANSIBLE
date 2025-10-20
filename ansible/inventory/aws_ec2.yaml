@@ -4,5 +4,7 @@ regions:
 
 filters:
   instance-state-name: running
+  tag:name: web-app
   tag:environment: development
   tag:application: backend
+    

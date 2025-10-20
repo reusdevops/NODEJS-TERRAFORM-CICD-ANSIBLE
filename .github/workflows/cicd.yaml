@@ -93,18 +93,23 @@ jobs:
 
       - name: Change SSH permision
         run: chmod 600 ~/.ssh/dev-server.pem
-      # - name: Setup Vault Password File
-      #   run: |
 
-      # - name: Test AWS EC2 inventory plugin
-      #   run: |
-      #     cd ./ansible
-      #     ANSIBLE_PRIVATE_KEY_FILE=~/.ssh/dev-server.pem ansible-inventory --list
+      - name: Setup Ansible Vault Password File
+        run: |
+          echo ${{ secrets.ANSIBLE_VAULT_PASSWORD }} > .vault_password
+
+      - name: Change Ansible Vault Password Permission
+        run: |
+          chmod 600 .vault_password
 
       - name: Deploy with Ansible
         run: |
           cd ./ansible
-          ANSIBLE_PRIVATE_KEY_FILE=~/.ssh/dev-server.pem ansible-playbook playbook.yaml
+          ansible-playbook playbook.yaml |
+          -e ansible_private_key_file=~/.ssh/dev-server.pem |
+          -e ENVIRONMENT=dev |
+          --vault-passwrod-file .vault_password |
+          
 
 
 
@@ -114,7 +119,10 @@ jobs:
 
 
 
-
+# - name: Test AWS EC2 inventory plugin 
+      #   run: |
+      #     cd ./ansible
+      #     ANSIBLE_PRIVATE_KEY_FILE=~/.ssh/dev-server.pem ansible-inventory --list
 
     # - name: Verify deployment
     #   run: |

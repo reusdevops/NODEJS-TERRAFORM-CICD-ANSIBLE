@@ -1,64 +1,101 @@
-# .github/workflows/deploy.yml
 name: Deploy Node.js Application
 
 on:
   push:
-    branches: [ master ]
+    branches: [master]
+
+env:
+  DOCKER_IMAGE_NAME: web-app
+  CONTAINER_NAME: web-app-container
+  APP_PORT: 3000
+
 jobs:
   test:
-    name: Testing the Application
+    name: Test Application
     runs-on: ubuntu-latest
-    # if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     environment: dev
-    steps:
-    - name: Checkout
-      uses: actions/checkout@v4
-
     
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Set up QEMU
-      uses: docker/setup-qemu-action@v3
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-    - name: Build and Load Image
-      uses: docker/build-push-action@v6
-      with:
-        load: true
-        tags: web-app:latest
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-    - name: Run docker container
-      run: docker run -d -p 3000:3000 --name web-app-container web-app:latest
+      - name: Build and load Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: |
+            ${{ env.DOCKER_IMAGE_NAME }}:latest
+            ${{ vars.DOCKERHUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:latest
+            ${{ vars.DOCKERHUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-    - name: Wait the Application to Start
-      run: sleep 5
+      - name: Run application container
+        run: |
+          docker run -d \
+            -p ${{ env.APP_PORT }}:${{ env.APP_PORT }} \
+            --name ${{ env.CONTAINER_NAME }} \
+            --health-cmd="curl -f http://localhost:${{ env.APP_PORT }} || exit 1" \
+            --health-interval=5s \
+            --health-timeout=3s \
+            --health-retries=3 \
+            ${{ env.DOCKER_IMAGE_NAME }}:latest
 
-    - name: Run Test
-      run : curl localhost:3000
+      - name: Wait for application to be healthy
+        run: |
+          timeout 30 bash -c 'until docker inspect --format="{{.State.Health.Status}}" ${{ env.CONTAINER_NAME }} | grep -q "healthy"; do sleep 2; done'
 
-    - name: Login to Docker Hub
-      uses: docker/login-action@v3
-      with:
-        username: ${{ vars.DOCKERHUB_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Run application tests
+        run: |
+          response=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:${{ env.APP_PORT }})
+          if [ "$response" != "200" ]; then
+            echo "Application health check failed with status code: $response"
+            exit 1
+          fi
+          echo "Application is healthy (HTTP $response)"
 
-    - name: Push to Docker Hub
-      uses: docker/build-push-action@v6
-      with:
-        context: .
-        push: true
-        tags: ${{ vars.DOCKERHUB_USERNAME}}/web-app:latest
+      - name: View container logs on failure
+        if: failure()
+        run: docker logs ${{ env.CONTAINER_NAME }}
+
+      - name: Push to Docker Hub
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ vars.DOCKERHUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:latest
+            ${{ vars.DOCKERHUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker stop ${{ env.CONTAINER_NAME }} || true
+          docker rm ${{ env.CONTAINER_NAME }} || true
 
   deploy:
-    name: Deploying the application
+    name: Deploy Application
     runs-on: ubuntu-latest
     environment: dev
     needs: test
+    
     steps:
-      - name: Checkout
+      - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Configure AWS credentials
@@ -68,95 +105,47 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ vars.AWS_REGION }}
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
       - name: Install Python dependencies
         run: |
-          python3 -m pip install --upgrade pip
+          python -m pip install --upgrade pip
           pip install boto3 ansible
 
-      - name: Check ansible node-version
+      - name: Verify Ansible installation
         run: ansible --version
 
-      - name: Install Ansible AWS collection
+      - name: Install Ansible collections and roles
         run: |
-          ansible-galaxy collection install amazon.aws
-          ansible-galaxy collection install community.aws
+          ansible-galaxy collection install amazon.aws community.aws
           ansible-galaxy role install geerlingguy.docker
 
-      - name: Setup SSH key
+      - name: Configure SSH key
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/dev-server.pem
+          chmod 600 ~/.ssh/dev-server.pem
 
-      - name: Change SSH permision
-        run: chmod 600 ~/.ssh/dev-server.pem
-
-      - name: Setup Ansible Vault Password File
+      - name: Create Ansible vault password file
         run: |
-          echo ${{ secrets.ANSIBLE_VAULT_PASSWORD }} > .vault_password
-
-      - name: Change Ansible Vault Password Permission
-        run: |
+          echo "${{ secrets.ANSIBLE_VAULT_PASSWORD }}" > .vault_password
           chmod 600 .vault_password
 
-      - name: Deploy with Ansible
+      - name: Run Ansible playbook
+        working-directory: ./ansible
         run: |
-          cd ./ansible
           ansible-playbook playbook.yaml \
-          -e ansible_private_key_file=~/.ssh/dev-server.pem \
-          -e ENVIRONMENT=dev \
-          --vault-passwrod-file .vault_password \
-          
+            -e ansible_private_key_file=~/.ssh/dev-server.pem \
+            -e ENVIRONMENT=dev \
+            -e DOCKER_IMAGE_TAG=${{ github.sha }} \
+            --vault-password-file ../.vault_password
 
-
-
-
-
-
-
-
-
-# - name: Test AWS EC2 inventory plugin 
-      #   run: |
-      #     cd ./ansible
-      #     ANSIBLE_PRIVATE_KEY_FILE=~/.ssh/dev-server.pem ansible-inventory --list
-
-    # - name: Verify deployment
-    #   run: |
-    #     cd ansible
-    #     ansible tag_Application_nodejs_app -i inventory/aws_ec2.yml -m shell -a "pm2 status"
-
-    # - name: Health check
-    #   run: |
-    #     sleep 30
-    #     LB_DNS="${{ needs.terraform.outputs.load_balancer_dns }}"
-    #     for i in {1..10}; do
-    #       if curl -f "http://$LB_DNS"; then
-    #         echo "Health check passed!"
-    #         break
-    #       fi
-    #       echo "Attempt $i failed, retrying..."
-    #       sleep 10
-    #     done
-
-  # test:
-  #   name: Test Application
-  #   runs-on: ubuntu-latest
-    
-  #   steps:
-  #   - name: Checkout
-  #     uses: actions/checkout@v3
-
-  #   - name: Setup Node.js
-  #     uses: actions/setup-node@v3
-  #     with:
-  #       node-version: '18'
-  #       cache: 'npm'
-
-  #   - name: Install dependencies
-  #     run: npm ci
-
-  #   - name: Run tests
-  #     run: npm test
-
-  #   - name: Run linting
-  #     run: npm run lint
+      - name: Cleanup sensitive files
+        if: always()
+        run: |
+          rm -f ~/.ssh/dev-server.pem
+          rm -f .vault_password

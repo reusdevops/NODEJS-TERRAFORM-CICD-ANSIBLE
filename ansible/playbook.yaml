@@ -1,25 +1,51 @@
 ---
-- name: Deploying application
+- name: Deploy Node.js Application
   hosts: all
-  become: true # This allows Ansible to use sudo
+  become: true
+  
   vars_files:
     - "vars/{{ ENVIRONMENT }}_secrets.yaml"
     - "vars/{{ ENVIRONMENT }}_main.yaml"
+  
+  vars:
+    # Default values (overridden by GitHub Actions -e flags)
+    DOCKER_IMAGE_NAME: "web-app"
+    DOCKER_IMAGE_TAG: "latest"
+    APP_PORT: 3000
+    ENVIRONMENT: "dev"
+    
+    # Computed variables
+    docker_image_full: "{{ dockerhub_username }}/{{ DOCKER_IMAGE_NAME }}:{{ DOCKER_IMAGE_TAG }}"
+    container_name: "{{ DOCKER_IMAGE_NAME }}-{{ ENVIRONMENT }}"
 
   pre_tasks:
-    # === QUICK DOCKER CHECK ===
-    - name: Check docker version
+    - name: Display deployment information
+      debug:
+        msg: |
+          ============================================
+          DEPLOYMENT CONFIGURATION
+          ============================================
+          Environment: {{ ENVIRONMENT }}
+          Docker Image: {{ docker_image_full }}
+          Container Name: {{ container_name }}
+          Host Port: {{ host_port }}
+          Container Port: {{ container_port }}
+          Git SHA: {{ DOCKER_IMAGE_TAG }}
+          ============================================
+
+    - name: Check if Docker is installed
       command: docker --version
       register: docker_check
       ignore_errors: true
       changed_when: false
       
-    - name: show message
+    - name: Display Docker status
       debug:
         msg: |
-          - docker --version return code: {{ docker_check.rc }}
+          Docker Status:
+          - Return Code: {{ docker_check.rc }}
           - Output: {{ docker_check.stdout if docker_check.rc == 0 else docker_check.stderr }}
-          - docker_needs_install : {{ docker_check.rc != 0 }}
+          - Docker Installation Needed: {{ docker_check.rc != 0 }}
 
   roles:
     - role: geerlingguy.docker
@@ -35,111 +61,148 @@
             max-file: "3"
 
   tasks:
-    # - name: Ensure nginx is installed
-    #   apt:
-    #     name: nginx
-    #     state: present
-    #     update_cache: yes
-    - name: Check vars
+    - name: Verify Docker Hub credentials
       debug:
-        msg: "dockerhub username is {{ dockerhub_username }}"
+        msg: "Docker Hub Username: {{ dockerhub_username }}"
   
     - name: Log in to Docker Hub
-      docker_login:
+      community.docker.docker_login:
         username: "{{ dockerhub_username }}"
         password: "{{ dockerhub_password }}"
-        registry_url: "https://index.docker.io/v1"
-    # - name: Getting container's port
-    #   set_fact:
-    #     current_port: docker inspect -f '{{(index (index .NetworkSettings.Ports "3000/tcp") 0).HostPort}}' movie-app-blue
+        registry_url: "https://index.docker.io/v1/"
+      no_log: true  # Hide sensitive output
 
-    # - name: Determine ports for deployment
-    #   set_fact:
-    #     current_port: "{{ current_port_check.stdout | default('8081') }}"
-    #     new_port: "{{ '8081' if current_port_check.stdout == '8080' else '8080' }}"
-    #     old_container: "{{ 'web-app-blue' if current_port_check.stdout == '8080' else 'web-app-green' }}"
-    #     new_container: "{{ 'web-app-green' if current_port_check.stdout == '8080' else 'web-app-blue' }}"
+    - name: Pull latest Docker image
+      community.docker.docker_image:
+        name: "{{ dockerhub_username }}/{{ DOCKER_IMAGE_NAME }}"
+        tag: "{{ DOCKER_IMAGE_TAG }}"
+        source: pull
+        force_source: yes
+      register: image_pull_result
 
-    # -   name: Download image from docker Hub
-    #     docker_image:
-    #       name: phyolwinlwinlatt/web-app
-    #       tag: latest
-    #       state: present
-    #       source: pull
-    #       force_source: yes  # Always pull latest version
-    #     tags: ['docker', 'images', 'download']
+    - name: Display image pull result
+      debug:
+        msg: "Successfully pulled image: {{ docker_image_full }}"
+      when: image_pull_result is succeeded
 
-    - name: Stop existing container (if running)
-      docker_container:
-        name: web-app
+    - name: Get current container status
+      community.docker.docker_container_info:
+        name: "{{ container_name }}"
+      register: container_info
+      ignore_errors: true
+
+    - name: Display current container info
+      debug:
+        msg: |
+          Current Container Status:
+          - Exists: {{ container_info.exists }}
+          - Running: {{ container_info.container.State.Running if container_info.exists else 'N/A' }}
+          - Image: {{ container_info.container.Config.Image if container_info.exists else 'N/A' }}
+      when: container_info.exists
+
+    - name: Stop existing container
+      community.docker.docker_container:
+        name: "{{ container_name }}"
         state: stopped
-      ignore_errors: true  # Don't fail if container doesn't exist
-      tags: ['docker', 'stop', 'container']
+      when: container_info.exists and container_info.container.State.Running
+      ignore_errors: true
 
-    - name: Remove existing container (optional - for clean restart)
-      docker_container:
-        name: web-app
+    - name: Remove existing container for clean deployment
+      community.docker.docker_container:
+        name: "{{ container_name }}"
         state: absent
-      ignore_errors: true  # Don't fail if container doesn't exist
-      tags: ['docker', 'remove', 'containers']
-      when: true # Set to true if you want to remove old container
+      when: container_info.exists
+      ignore_errors: true
 
-    - name: Create and run Docker container
-      docker_container:
-        name: web-app
-        image: "{{ dockerhub_username }}/web-app:latest"
+    - name: Deploy Docker container
+      community.docker.docker_container:
+        name: "{{ container_name }}"
+        image: "{{ docker_image_full }}"
         state: started
         restart_policy: unless-stopped
-        ports: "{{ host_port }}:{{ container_port }}"
-        # Additional container options
-        pull: no  # Don't pull again, we already pulled above
-        detach: yes
-        interactive: no
-        tty: no
+        ports:
+          - "{{ host_port }}:{{ container_port }}"
+        env:
+          NODE_ENV: "{{ ENVIRONMENT }}"
+          APP_VERSION: "{{ DOCKER_IMAGE_TAG }}"
+          PORT: "{{ container_port }}"
+        labels:
+          app: "{{ DOCKER_IMAGE_NAME }}"
+          environment: "{{ ENVIRONMENT }}"
+          version: "{{ DOCKER_IMAGE_TAG }}"
+          deployed_at: "{{ ansible_date_time.iso8601 }}"
+          deployed_by: "ansible"
+        pull: false  # Already pulled above
+        detach: true
         healthcheck:
-          test: ["CMD", "curl", "-f", "http://localhost:${{ container_port }}"]
+          test: ["CMD-SHELL", "curl -f http://localhost:{{ container_port }} || exit 1"]
           interval: 30s
           timeout: 10s
           retries: 3
           start_period: 40s
+      register: container_deploy
 
+    - name: Wait for container to be healthy
+      command: docker inspect --format='{{ '{{' }}.State.Health.Status{{ '}}' }}' {{ container_name }}
+      register: health_status
+      until: health_status.stdout == "healthy"
+      retries: 12
+      delay: 5
+      changed_when: false
+      when: container_deploy is succeeded
 
+    - name: Verify application is responding
+      uri:
+        url: "http://localhost:{{ host_port }}"
+        status_code: 200
+        timeout: 5
+      register: app_response
+      retries: 10
+      delay: 3
+      until: app_response.status == 200
 
+    - name: Display container logs (last 20 lines)
+      command: docker logs --tail 20 {{ container_name }}
+      register: container_logs
+      changed_when: false
 
+    - name: Show container logs
+      debug:
+        msg: "{{ container_logs.stdout_lines }}"
 
+    - name: Clean up old Docker images (keep last 3 versions)
+      shell: |
+        docker images {{ dockerhub_username }}/{{ DOCKER_IMAGE_NAME }} --format "{{ '{{' }}.ID{{ '}}' }} {{ '{{' }}.Tag{{ '}}' }}" | \
+        grep -v "{{ DOCKER_IMAGE_TAG }}" | \
+        tail -n +3 | \
+        awk '{print $1}' | \
+        xargs -r docker rmi -f
+      ignore_errors: true
+      when: ENVIRONMENT == "production"
+      register: cleanup_result
 
+    - name: Log deployment to file
+      lineinfile:
+        path: "/var/log/{{ DOCKER_IMAGE_NAME }}-deployments.log"
+        line: "{{ ansible_date_time.iso8601 }} | {{ ENVIRONMENT }} | {{ DOCKER_IMAGE_TAG }} | {{ dockerhub_username }}/{{ DOCKER_IMAGE_NAME }}:{{ DOCKER_IMAGE_TAG }} | {{ ansible_user }}"
+        create: yes
+        mode: '0644'
 
+    - name: Deployment summary
+      debug:
+        msg: |
+          ============================================
+          DEPLOYMENT SUCCESSFUL
+          ============================================
+          Container Name: {{ container_name }}
+          Image: {{ docker_image_full }}
+          Status: {{ container_deploy.container.State.Status }}
+          Ports: {{ host_port }}:{{ container_port }}
+          Health: {{ health_status.stdout | default('pending') }}
+          Application URL: http://{{ ansible_default_ipv4.address }}:{{ host_port }}
+          ============================================
 
-
-
-  #   - name: Update apt cache
-  #     apt:
-  #       update_cache: yes
-  #       cache_valid_time: 3600
-  #     tags: ['docker', 'update']
-
-  #   - name: Install Docker using docker_host module
-  #     docker_host:
-  #       state: present
-  #       docker_daemon_config:
-  #         log-driver: "json-file"
-  #         log-opts:
-  #           max-size: "10m"
-  #           max-file: "3"
-  #     tags: ['docker', 'install']
-
-  #   - name: Add users to docker group
-  #     user:
-  #       name: reus
-  #       groups: docker
-  #       append: yes
-  #     tags: ['docker', 'users']
-
-  #   - name: Test Docker installation
-  #     docker_container:
-  #       name: hello-world-test
-  #       image: hello-world
-  #       state: started
-  #       detach: no
-  #       cleanup: yes
-  #     tags: ['docker', 'test']
+  post_tasks:
+    - name: Send deployment notification (optional)
+      debug:
+        msg: "Deployment of {{ docker_image_full }} to {{ ENVIRONMENT }} completed successfully!"

@@ -151,7 +151,7 @@
       register: container_deploy
 
     - name: Wait for container to be healthy
-      command: docker inspect --format='{{ '{{' }}.State.Health.Status{{ '}}' }}' {{ container_name }}
+      command: docker inspect --format= {{ .State.Health.Status }} {{ container_name }}
       register: health_status
       until: health_status.stdout == "healthy"
       retries: 12

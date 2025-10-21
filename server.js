@@ -8,10 +8,10 @@ app.get('/', (req, res) => {
     })
 })
 
-app.get('/posts', (req, res) => {
+app.get('/health', (req, res) => {
     return res.status(200).json({
-        path: "/posts", 
-        message: "there are posts"
+        path: "/health", 
+        message: "health check route"
     })
 })
 

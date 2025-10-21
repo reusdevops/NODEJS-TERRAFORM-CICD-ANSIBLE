@@ -1,5 +1,5 @@
 ---
-- name: Deploy Node.js Application
+- name: Deploy Node.js Application with Nginx Proxy
   hosts: all
   become: true
   
@@ -16,6 +16,11 @@
     # Computed variables
     docker_image_full: "{{ dockerhub_username }}/{{ DOCKER_IMAGE_NAME }}:{{ DOCKER_IMAGE_TAG }}"
     container_name: "{{ DOCKER_IMAGE_NAME }}-{{ ENVIRONMENT }}"
+    nginx_container_name: "nginx-proxy-{{ ENVIRONMENT }}"
+    
+    # Network configuration
+    docker_network_name: "app-network-{{ ENVIRONMENT }}"
+    nginx_proxy_port: 80
 
   pre_tasks:
     - name: Display deployment information
@@ -27,8 +32,10 @@
           Environment: {{ ENVIRONMENT }}
           Docker Image: {{ docker_image_full }}
           Container Name: {{ container_name }}
+          Nginx Container: {{ nginx_container_name }}
           Host Port: {{ host_port }}
           Container Port: {{ container_port }}
+          Nginx Proxy Port: {{ nginx_proxy_port }}
           Git SHA: {{ DOCKER_IMAGE_TAG }}
           ============================================
 
@@ -60,6 +67,32 @@
             max-file: "3"
 
   tasks:
+    # Create Docker network for container communication
+    - name: Create Docker network
+      community.docker.docker_network:
+        name: "{{ docker_network_name }}"
+        state: present
+      register: docker_network
+
+    - name: Display network info
+      debug:
+        msg: "Docker network '{{ docker_network_name }}' created/verified"
+
+    # Create Nginx configuration
+    - name: Create Nginx config directory
+      file:
+        path: "/etc/nginx/{{ ENVIRONMENT }}"
+        state: directory
+        mode: '0755'
+
+    - name: Deploy Nginx configuration from template
+      template:
+        src: "templates/nginx-proxy.conf.j2"
+        dest: "/etc/nginx/{{ ENVIRONMENT }}/default.conf"
+        mode: '0644'
+      register: nginx_config
+
+    # Deploy Web Application
     - name: Verify Docker Hub credentials
       debug:
         msg: "Docker Hub Username: {{ dockerhub_username }}"
@@ -69,7 +102,6 @@
         username: "{{ dockerhub_username }}"
         password: "{{ dockerhub_password }}"
         registry_url: "https://index.docker.io/v1/"
-      # no_log: true  # Hide sensitive output
 
     - name: Pull latest Docker image
       community.docker.docker_image:
@@ -84,52 +116,34 @@
         msg: "Successfully pulled image: {{ docker_image_full }}"
       when: image_pull_result is succeeded
 
-    - name: Getting running container's info
-      community.docker.docker_host_info:
-        containers: yes
-      register: docker_containers_info
-    
-    - name: Displaying running containers
-      debug:
-        msg: docker_containers_info
-
-    - name: Get current container status
+    - name: Get current app container status
       community.docker.docker_container_info:
         name: "{{ container_name }}"
       register: container_info
       ignore_errors: true
 
-    - name: Display current container info
-      debug:
-        msg: |
-          Current Container Status:
-          - Exists: {{ container_info.exists }}
-          - Running: {{ container_info.container.State.Running if container_info.exists else 'N/A' }}
-          - Image: {{ container_info.container.Config.Image if container_info.exists else 'N/A' }}
-      when: container_info.exists
-
-    - name: Stop existing container
+    - name: Stop existing app container
       community.docker.docker_container:
         name: "{{ container_name }}"
         state: stopped
       when: container_info.exists and container_info.container.State.Running
       ignore_errors: true
 
-    - name: Remove existing container for clean deployment
+    - name: Remove existing app container
       community.docker.docker_container:
         name: "{{ container_name }}"
         state: absent
       when: container_info.exists
       ignore_errors: true
 
-    - name: Deploy Docker container
+    - name: Deploy Web Application container
       community.docker.docker_container:
         name: "{{ container_name }}"
         image: "{{ docker_image_full }}"
         state: started
         restart_policy: unless-stopped
-        ports:
-          - "{{ host_port }}:{{ container_port }}"
+        networks:
+          - name: "{{ docker_network_name }}"
         env:
           NODE_ENV: "{{ ENVIRONMENT }}"
           APP_VERSION: "{{ DOCKER_IMAGE_TAG }}"
@@ -140,7 +154,7 @@
           version: "{{ DOCKER_IMAGE_TAG }}"
           deployed_at: "{{ ansible_date_time.iso8601 }}"
           deployed_by: "ansible"
-        pull: false  # Already pulled above
+        pull: false
         detach: true
         healthcheck:
           test: ["CMD-SHELL", "curl -f http://localhost:{{ container_port }} || exit 1"]
@@ -150,18 +164,62 @@
           start_period: 40s
       register: container_deploy
 
-    # - name: Wait for container to be healthy
-    #   command: docker inspect --format= {{ .State.Health.Status }} {{ container_name }}
-    #   register: health_status
-    #   until: health_status.stdout == "healthy"
-    #   retries: 12
-    #   delay: 5
-    #   changed_when: false
-    #   when: container_deploy is succeeded
+    - name: Wait for application container to be ready
+      wait_for:
+        timeout: 30
+      delegate_to: localhost
 
-    - name: Verify application is responding
+    # Deploy Nginx Proxy
+    - name: Get current Nginx container status
+      community.docker.docker_container_info:
+        name: "{{ nginx_container_name }}"
+      register: nginx_info
+      ignore_errors: true
+
+    - name: Stop existing Nginx container
+      community.docker.docker_container:
+        name: "{{ nginx_container_name }}"
+        state: stopped
+      when: nginx_info.exists and nginx_info.container.State.Running
+      ignore_errors: true
+
+    - name: Remove existing Nginx container
+      community.docker.docker_container:
+        name: "{{ nginx_container_name }}"
+        state: absent
+      when: nginx_info.exists
+      ignore_errors: true
+
+    - name: Deploy Nginx Proxy container
+      community.docker.docker_container:
+        name: "{{ nginx_container_name }}"
+        image: "nginx:alpine"
+        state: started
+        restart_policy: unless-stopped
+        networks:
+          - name: "{{ docker_network_name }}"
+        ports:
+          - "{{ nginx_proxy_port }}:80"
+        volumes:
+          - "/etc/nginx/{{ ENVIRONMENT }}/default.conf:/etc/nginx/conf.d/default.conf:ro"
+        labels:
+          app: "nginx-proxy"
+          environment: "{{ ENVIRONMENT }}"
+          proxy_for: "{{ DOCKER_IMAGE_NAME }}"
+          deployed_at: "{{ ansible_date_time.iso8601 }}"
+        pull: true
+        detach: true
+      register: nginx_deploy
+
+    - name: Wait for Nginx to be ready
+      wait_for:
+        timeout: 10
+      delegate_to: localhost
+
+    # Verification
+    - name: Verify application is responding through Nginx
       uri:
-        url: "http://localhost:{{ host_port }}/health"
+        url: "http://localhost:{{ nginx_proxy_port }}/health"
         status_code: 200
         timeout: 5
       register: app_response
@@ -169,14 +227,23 @@
       delay: 3
       until: app_response.status == 200
 
-    - name: Display container logs (last 20 lines)
+    - name: Display container logs (web app - last 20 lines)
       command: docker logs --tail 20 {{ container_name }}
       register: container_logs
       changed_when: false
 
-    - name: Show container logs
+    - name: Show web app container logs
       debug:
         msg: "{{ container_logs.stdout_lines }}"
+
+    - name: Display Nginx logs (last 10 lines)
+      command: docker logs --tail 10 {{ nginx_container_name }}
+      register: nginx_logs
+      changed_when: false
+
+    - name: Show Nginx logs
+      debug:
+        msg: "{{ nginx_logs.stdout_lines }}"
 
     - name: Clean up old Docker images (keep last 3 versions)
       shell: |
@@ -192,7 +259,7 @@
     - name: Log deployment to file
       lineinfile:
         path: "/var/log/{{ DOCKER_IMAGE_NAME }}-deployments.log"
-        line: "{{ ansible_date_time.iso8601 }} | {{ ENVIRONMENT }} | {{ DOCKER_IMAGE_TAG }} | {{ dockerhub_username }}/{{ DOCKER_IMAGE_NAME }}:{{ DOCKER_IMAGE_TAG }} | {{ ansible_user }}"
+        line: "{{ ansible_date_time.iso8601 }} | {{ ENVIRONMENT }} | {{ DOCKER_IMAGE_TAG }} | {{ dockerhub_username }}/{{ DOCKER_IMAGE_NAME }}:{{ DOCKER_IMAGE_TAG }} | Nginx:{{ nginx_proxy_port }} | {{ ansible_user }}"
         create: yes
         mode: '0644'
 
@@ -202,15 +269,22 @@
           ============================================
           DEPLOYMENT SUCCESSFUL
           ============================================
-          Container Name: {{ container_name }}
-          Image: {{ docker_image_full }}
-          Status: {{ container_deploy.container.State.Status }}
-          Ports: {{ host_port }}:{{ container_port }}
-          Health: {{ health_status.stdout | default('pending') }}
-          Application URL: http://{{ ansible_default_ipv4.address }}:{{ host_port }}
+          Web App Container: {{ container_name }}
+          Web App Image: {{ docker_image_full }}
+          Web App Status: {{ container_deploy.container.State.Status }}
+          
+          Nginx Proxy Container: {{ nginx_container_name }}
+          Nginx Image: nginx:alpine
+          Nginx Status: {{ nginx_deploy.container.State.Status }}
+          
+          Network: {{ docker_network_name }}
+          Public Access: http://{{ ansible_default_ipv4.address }}:{{ nginx_proxy_port }}
+          
+          Architecture:
+          Client -> Nginx (port {{ nginx_proxy_port }}) -> Web App (port {{ container_port }})
           ============================================
 
   post_tasks:
-    - name: Send deployment notification (optional)
+    - name: Send deployment notification
       debug:
-        msg: "Deployment of {{ docker_image_full }} to {{ ENVIRONMENT }} completed successfully!"
+        msg: "Deployment of {{ docker_image_full }} with Nginx proxy to {{ ENVIRONMENT }} completed successfully!"

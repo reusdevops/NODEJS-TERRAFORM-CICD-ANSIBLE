@@ -150,18 +150,18 @@
           start_period: 40s
       register: container_deploy
 
-    - name: Wait for container to be healthy
-      command: docker inspect --format= {{ .State.Health.Status }} {{ container_name }}
-      register: health_status
-      until: health_status.stdout == "healthy"
-      retries: 12
-      delay: 5
-      changed_when: false
-      when: container_deploy is succeeded
+    # - name: Wait for container to be healthy
+    #   command: docker inspect --format= {{ .State.Health.Status }} {{ container_name }}
+    #   register: health_status
+    #   until: health_status.stdout == "healthy"
+    #   retries: 12
+    #   delay: 5
+    #   changed_when: false
+    #   when: container_deploy is succeeded
 
     - name: Verify application is responding
       uri:
-        url: "http://localhost:{{ host_port }}"
+        url: "http://localhost:{{ host_port }}/health"
         status_code: 200
         timeout: 5
       register: app_response

@@ -57,7 +57,7 @@ server {
     location /health {
         proxy_pass http://web_app/health;
         proxy_http_version 1.1;
-        proxy_set_header Host $host;
+        proxy_set_header Host localhost;
         access_log off;
     }
 
